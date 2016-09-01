@@ -55,11 +55,11 @@ function forecastApiGetWeather({ results }) {
     return getJSONP(url);
 }
 
-const getWeatherByCity = async function (city) {
+async function getWeatherByCity(city) {
     const googleApiResponse = await googleApiGetGeoLocation(city);
     const forecastApiResponse = await forecastApiGetWeather(googleApiResponse);
     return forecastApiResponse;
-};
+}
 
 getWeatherByCity('Dnipro').then((data) => {
     console.log(data);
