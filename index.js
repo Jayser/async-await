@@ -1,84 +1,58 @@
-window.CallbackRegistry = {}; // реестр
+const getJSONP = (function () {
+    window.CallbackRegistry = {};
 
-function scriptRequest(url, onSuccess, onError) {
+    return function (url) {
+        return new Promise((res, rej) => {
 
-    var scriptOk = false; // флаг, что вызов прошел успешно
+            var scriptOk = false;
 
-    var callbackName = 'cb' + String(Math.random()).slice(-6);
+            var callbackName = 'cb' + String(Math.random()).slice(-6);
 
-    url += ~url.indexOf('?') ? '&' : '?';
-    url += 'callback=CallbackRegistry.' + callbackName;
+            url += ~url.indexOf('?') ? '&' : '?';
+            url += 'callback=CallbackRegistry.' + callbackName;
 
-    CallbackRegistry[callbackName] = function(data) {
-        scriptOk = true; // обработчик вызвался, указать что всё ок
-        delete CallbackRegistry[callbackName]; // можно очистить реестр
-        onSuccess(data); // и вызвать onSuccess
-    };
+            CallbackRegistry[callbackName] = function(data) {
+                scriptOk = true;
+                delete CallbackRegistry[callbackName];
+                res(data);
+            };
 
-    function checkCallback() {
-        if (scriptOk) return; // сработал обработчик?
-        delete CallbackRegistry[callbackName];
-        onError(url); // нет - вызвать onError
-    }
-
-    var script = document.createElement('script');
-
-    script.onreadystatechange = function() {
-        if (this.readyState == 'complete' || this.readyState == 'loaded') {
-            this.onreadystatechange = null;
-            setTimeout(checkCallback, 0);
-        }
-    };
-
-    script.onload = script.onerror = checkCallback;
-    script.src = url;
-
-    document.body.appendChild(script);
-}
-
-function httpGet(url) {
-    return new Promise(function(resolve, reject) {
-
-        var xhr = new XMLHttpRequest();
-        xhr.open('GET', url, true);
-
-        xhr.onload = function() {
-            if (this.status == 200) {
-                resolve(JSON.parse(this.response));
-            } else {
-                var error = new Error(this.statusText);
-                error.code = this.status;
-                reject(error);
+            function checkCallback() {
+                if (scriptOk) return;
+                delete CallbackRegistry[callbackName];
+                rej(err => err);
             }
-        };
 
-        xhr.onerror = function() {
-            reject(new Error("Network Error"));
-        };
+            var script = document.createElement('script');
 
-        xhr.send();
-    });
-}
+            script.onreadystatechange = function() {
+                if (this.readyState == 'complete' || this.readyState == 'loaded') {
+                    this.onreadystatechange = null;
+                    setTimeout(checkCallback, 0);
+                }
+            };
+
+            script.onload = script.onerror = checkCallback;
+            script.src = url;
+
+            document.body.appendChild(script);
+        });
+    }
+}());
 
 function googleApiGetGeoLocation(city) {
-    return httpGet('https://maps.google.com/maps/api/geocode/json?sensor=false" . "&address=' + city);
+    const url = 'https://maps.google.com/maps/api/geocode/json?sensor=false&address=';
+    return fetch(`${url}city`).then(res => res.json()).catch(err => {
+        throw new Error(err);
+    });
 }
 
 function forecastApiGetWeather({ results }) {
     const lat = results[0].geometry.location.lat;
     const lng = results[0].geometry.location.lng;
+    const url = `https://api.forecast.io/forecast/e6b2ec46c1a1424d28fd7606c38272c6/${lat},${lng}?units=si`;
 
-
-    return new Promise((res, rej) => {
-        const url = `https://api.forecast.io/forecast/e6b2ec46c1a1424d28fd7606c38272c6/${lat},${lng}?units=si`;
-        const onSuccess = (data) => {
-            res(data);
-        };
-        const onError = () => {
-            console.log('onError');
-        };
-        scriptRequest(url, onSuccess, onError);
-    });
+    return getJSONP(url);
 }
 
 const getWeatherByCity = async function (city) {
